@@ -84,13 +84,13 @@ private[mongev] trait EvolutionHelperScripts {
 
   def lockDBName = "play_evolutions_lock"
 
-  val allEvolutionsQuery = evolutionsQuery("")
+  val allEvolutionsQuery = evolutionsQuery("{}")
 
   val unfinishedEvolutionsQuery = evolutionsQuery( """{"state" : {$in : ["applying_up", "applying_down"]}}""")
 
   def evolutionsQuery(query: String) =
     s"""
-      |cursor = db.$evolutionDBName.find($query).sort( { "revision": -1 } );
+      |cursor = db.$evolutionDBName.find($query, {"_id":false, "hash": true, "db_up":true, "db_down":true, "revision":true}).sort( { "revision": -1 } );
       |print("[");
       |while ( cursor.hasNext() ) {
       |  printjson( cursor.next() );
@@ -190,6 +190,7 @@ private[mongev] trait MongoScriptExecutor extends MongevLogger {
         } catch {
           case e: com.fasterxml.jackson.core.JsonParseException =>
             logger.error("Failed to parse json: " + json)
+            input.moveTo(new File("output.js"), true);
             throw InvalidDatabaseEvolutionScript(json, result, "Failed to parse json result.")
         }
       case 0 =>
@@ -505,7 +506,7 @@ class MongevPlugin(app: Application) extends Plugin with HandleWebCommandSupport
   override lazy val enabled = app.configuration.getBoolean("mongodb.evolution.enabled").getOrElse(false)
 
   lazy val applyDownEvolutions = app.configuration.getBoolean("mongodb.evolution.applyDownEvolutions").getOrElse(false)
-  lazy val compareHashes = app.configuration.getBoolean("mongodb.evolution.compareHashes").getOrElse(true)
+  lazy val compareHashes = app.configuration.getBoolean("mongodb.evolution.compareHashes").getOrElse(false)
   lazy val applyProdEvolutions = app.configuration.getBoolean("mongodb.evolution.applyProdEvolutions").getOrElse(false)
 
   /**
